@@ -314,22 +314,68 @@ public class Compiler extends javax.swing.JFrame {
 
     public class SymbolTable {
 
-        private HashMap<String, String> symbols;
+        private HashMap<String, Symbol> symbols;
+        private int nextOffset;  // Tracks the next available offset for each new symbol
 
         public SymbolTable() {
             symbols = new HashMap<>();
+            nextOffset = 0;  // Initialize offset at 0
         }
 
-        public void addSymbol(String name, String type) {
-            symbols.put(name, type);
+        public void addSymbol(String name, String type, int lineNumber, String value) {
+            // Assign the current offset to this symbol and increment offset for the next symbol
+            symbols.put(name, new Symbol(name, type, lineNumber, nextOffset, value));
+            nextOffset += 4;  // Assuming each symbol takes 4 bytes (adjust as necessary)
         }
 
-        public String getSymbolType(String name) {
+        public Symbol getSymbol(String name) {
             return symbols.get(name);
         }
 
-        public HashMap<String, String> getSymbols() {
+        public HashMap<String, Symbol> getSymbols() {
             return symbols;
+        }
+    }
+
+// Clase para mantener el simbolo
+    public class Symbol {
+
+        private String name;
+        private String type;
+        private int lineNumber;
+        private int offset;  // New attribute for offset
+        private String value; // New attribute for the initial value
+
+        public Symbol(String name, String type, int lineNumber, int offset, String value) {
+            this.name = name;
+            this.type = type;
+            this.lineNumber = lineNumber;
+            this.offset = offset;
+            this.value = value;
+        }
+
+        public String getName() {
+            return name;
+        }
+
+        public String getType() {
+            return type;
+        }
+
+        public int getLineNumber() {
+            return lineNumber;
+        }
+
+        public int getOffset() {
+            return offset;
+        }
+
+        public String getValue() {
+            return value;
+        }
+
+        public void setValue(String value) {
+            this.value = value;
         }
     }
 
@@ -339,6 +385,7 @@ public class Compiler extends javax.swing.JFrame {
         private ArrayList<Token> tokens;
         private StringBuilder errors;
         private boolean expectingIdentifier;
+        private String currentType;
 
         private final String[] keywords = {"int", "float", "boolean", "string", "if", "else", "while", "return"};
 
@@ -347,71 +394,89 @@ public class Compiler extends javax.swing.JFrame {
             tokens = new ArrayList<>();
             errors = new StringBuilder();
             expectingIdentifier = false;
+            currentType = null;
         }
 
         public void analyze(String code) {
             tokens.clear();
             errors.setLength(0);
             expectingIdentifier = false;
+            currentType = null;
 
             String[] lines = code.split("\\n");
 
             Pattern pattern = Pattern.compile(
                     "\\b(int|float|boolean|string|if|else|while|return)\\b|"
-                    + // palabras clave
+                    + // Keywords
                     "\\b(true|false)\\b|"
-                    + // literales booleanos
+                    + // Boolean literals
                     "\"[^\"]*\"|"
-                    + // literales de cadena
+                    + // String literals
                     "[a-zA-Z_][a-zA-Z0-9_]*|"
-                    + // identificadores
+                    + // Identifiers
                     "\\d+\\.\\d+|\\d+|"
-                    + // números (int y float)
-                    "\\+|\\-|\\*|\\/|=|==|!=|<=|>=|<|>|\\(|\\)|\\{|\\}|;|," // operadores y símbolos
+                    + // Integer and float literals
+                    "\\+|\\-|\\*|\\/|=|==|!=|<=|>=|<|>|\\(|\\)|\\{|\\}|;|," // Operators and symbols
             );
 
             for (int lineNum = 0; lineNum < lines.length; lineNum++) {
                 Matcher matcher = pattern.matcher(lines[lineNum]);
+                String pendingValue = null;  // Store value if an assignment is found
 
                 while (matcher.find()) {
                     String match = matcher.group();
 
                     if (isKeyword(match)) {
                         tokens.add(new Token("KEYWORD", match));
-                        expectingIdentifier = match.equals("int") || match.equals("float")
-                                || match.equals("boolean") || match.equals("string");
-                    } else if (match.equals("true") || match.equals("false")) { // Literales booleanos
+
+                        // Establece el tipo actual si es una palabra clave de tipo de datos
+                        if (match.equals("int") || match.equals("float") || match.equals("boolean") || match.equals("string")) {
+                            currentType = match;
+                            expectingIdentifier = true;
+                        } else {
+                            currentType = null;
+                        }
+                    } else if (match.equals("true") || match.equals("false")) { // Boolean literals
                         tokens.add(new Token("BOOLEAN_LITERAL", match));
-                    } else if (match.startsWith("\"") && match.endsWith("\"")) { // Literales de cadena
+                        pendingValue = match;  // Capture value if part of a declaration
+                    } else if (match.startsWith("\"") && match.endsWith("\"")) { // String literals
                         tokens.add(new Token("STRING_LITERAL", match));
-                    } else if (match.matches("[a-zA-Z_][a-zA-Z0-9_]*")) { // Identificadores
+                        pendingValue = match;  // Capture value if part of a declaration
+                    } else if (match.matches("[a-zA-Z_][a-zA-Z0-9_]*")) { // Identifiers
                         if (expectingIdentifier) {
                             tokens.add(new Token("IDENTIFIER", match));
+
+                            // Agregar identificador a la tabla de símbolos con el tipo actual y el valor inicial
                             if (!symbolTable.getSymbols().containsKey(match)) {
-                                symbolTable.addSymbol(match, "undefined");
+                                symbolTable.addSymbol(match, currentType, lineNum + 1, pendingValue);
                             }
                             expectingIdentifier = false;
+                            currentType = null;
+                            pendingValue = null;
                         } else if (!symbolTable.getSymbols().containsKey(match)) {
                             errors.append("Error en línea ").append(lineNum + 1)
                                     .append(": identificador '").append(match).append("' sin tipo de dato.\n");
                         } else {
                             tokens.add(new Token("IDENTIFIER", match));
                         }
-                    } else if (match.matches("\\d+\\.\\d+")) { // Float
+                    } else if (match.matches("\\d+\\.\\d+")) { // Float literals
                         tokens.add(new Token("FLOAT_LITERAL", match));
-                    } else if (match.matches("\\d+")) { // Int
+                        pendingValue = match;  // Capture value if part of a declaration
+                    } else if (match.matches("\\d+")) { // Integer literals
                         tokens.add(new Token("INT_LITERAL", match));
-                    } else if (match.matches("\\+|\\-|\\*|\\/|=|==|!=|<=|>=|<|>|\\(|\\)|\\{|\\}|;|,")) { // Operadores y símbolos
-                        tokens.add(new Token("SYMBOL", match));
+                        pendingValue = match;  // Capture value if part of a declaration
+                    } else if (match.equals("=")) { // Assignment operator
+                        expectingIdentifier = false;  // No longer expecting a new identifier
                     } else {
-                        errors.append("Error en línea ").append(lineNum + 1)
-                                .append(": símbolo no reconocido '").append(match).append("'\n");
+                        tokens.add(new Token("SYMBOL", match));
                     }
                 }
 
+                // Revision de declaraciones incompletas
                 if (expectingIdentifier) {
                     errors.append("Error en línea ").append(lineNum + 1).append(": declaración incompleta, se esperaba un identificador después de tipo de dato.\n");
                     expectingIdentifier = false;
+                    currentType = null;
                 }
             }
         }
@@ -450,47 +515,32 @@ public class Compiler extends javax.swing.JFrame {
         LexicalAnalyzer lexicalAnalyzer = new LexicalAnalyzer();
         lexicalAnalyzer.analyze(code);
 
-        jtaConsole.setText(lexicalAnalyzer.getErrors());
-
+        // Mostrar errores en la consola JTextArea
         String errorMessages = lexicalAnalyzer.getErrors();
-        if (errorMessages.isEmpty()) {
-            jtaConsole.setText("Compilación correcta");
-        } else {
-            jtaConsole.setText(errorMessages);
-        }
-        
-        updateSymbolTable();
+        jtaConsole.setText(errorMessages.isEmpty() ? "Compilación correcta" : errorMessages);
 
-        /*DefaultTableModel model = (DefaultTableModel) symbolTable.getModel();
-        model.setRowCount(0); // Clear table
-        for (String name : lexicalAnalyzer.getSymbolTable().getSymbols().keySet()) {
-            String type = lexicalAnalyzer.getSymbolTable().getSymbols().get(name);
-            model.addRow(new Object[]{name, type});
-        }*/
+        // Actualiza la tabla de simbolos
+        updateSymbolTable(lexicalAnalyzer.getSymbolTable());
     }
 
-    private void updateSymbolTable() {
-        // Obtener la tabla de símbolos del analizador léxico
-        LexicalAnalyzer lexicalAnalyzer = new LexicalAnalyzer();
-        SymbolTable symbolTable = lexicalAnalyzer.getSymbolTable();
-        
-        if (symbolTable.getSymbols().isEmpty()) {
-            System.out.println("La tabla de símbolos está vacía.");
-        } else {
-            System.out.println("Tabla de símbolos contiene " + symbolTable.getSymbols().size() + " símbolos.");
-        }
-
-        // Crear un modelo de tabla para actualizar el JTable
+    private void updateSymbolTable(SymbolTable symbolTable) {
         DefaultTableModel model = new DefaultTableModel();
         model.addColumn("Identificador");
         model.addColumn("Tipo de Dato");
+        model.addColumn("Número de Línea");
+        model.addColumn("Offset");
+        //model.addColumn("Valor Inicial");
 
-        // Llenar el modelo con los datos de la tabla de símbolos
-        for (Map.Entry<String, String> entry : symbolTable.getSymbols().entrySet()) {
-            model.addRow(new Object[]{entry.getKey(), entry.getValue()});
+        for (Symbol symbol : symbolTable.getSymbols().values()) {
+            model.addRow(new Object[]{
+                symbol.getName(),
+                symbol.getType(),
+                symbol.getLineNumber(),
+                symbol.getOffset(),
+                //symbol.getValue()
+            });
         }
 
-        // Establecer el modelo de la tabla en el JTable
         tblSymbols.setModel(model);
     }
 
