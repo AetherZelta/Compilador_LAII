@@ -5,16 +5,33 @@
 package proyectola2;
 
 import compilerTools.Functions;
+import java.awt.Color;
 import java.awt.Image;
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileReader;
+import java.io.FileWriter;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import javax.swing.Icon;
 import javax.swing.ImageIcon;
+import javax.swing.JFileChooser;
 import javax.swing.JLabel;
+import javax.swing.JOptionPane;
+import javax.swing.SwingUtilities;
+import javax.swing.event.DocumentEvent;
+import javax.swing.event.DocumentListener;
+import javax.swing.filechooser.FileNameExtensionFilter;
 import javax.swing.table.DefaultTableModel;
+import javax.swing.text.SimpleAttributeSet;
+import javax.swing.text.StyleConstants;
+import javax.swing.text.StyledDocument;
 
 /**
  *
@@ -31,11 +48,68 @@ public class Compiler extends javax.swing.JFrame {
         this.setLocationRelativeTo(this);
         SetImageLabel(jLabel1, "src/images/tecnm4.png");
         SetImageLabel(jLabel2, "src/images/tecnm3.png");
+
     }
 
     private void init() {
         Functions.setLineNumberOnJTextComponent(jtpCode);
+
+        DefaultTableModel modeloTabla = new DefaultTableModel(
+                new Object[]{"Tipo", "Lexema", "Línea", "Columna"}, 0);
+        tblSymbols.setModel(modeloTabla);
+
+        StyledDocument doc = jtpCode.getStyledDocument();
+        SimpleAttributeSet estiloPalabraReservada = new SimpleAttributeSet();
+        StyleConstants.setForeground(estiloPalabraReservada, Color.BLUE);
+        StyleConstants.setBold(estiloPalabraReservada, true);
+
+        SimpleAttributeSet estiloTextoNormal = new SimpleAttributeSet();
+        StyleConstants.setForeground(estiloTextoNormal, Color.BLACK);
+        StyleConstants.setBold(estiloTextoNormal, false);
+        jtpCode.getDocument().addDocumentListener(new DocumentListener() {
+            @Override
+            public void insertUpdate(DocumentEvent e) {
+                resaltarCodigo();
+            }
+
+            @Override
+            public void removeUpdate(DocumentEvent e) {
+                resaltarCodigo();
+            }
+
+            @Override
+            public void changedUpdate(DocumentEvent e) {
+                // No es necesario para documentos de texto plano
+            }
+
+            private void resaltarCodigo() {
+                SwingUtilities.invokeLater(() -> {
+                    try {
+                        String texto = jtpCode.getText();
+                        doc.setCharacterAttributes(0, texto.length(), estiloTextoNormal, true); // Limpia estilos previos
+
+                        String[] palabras = texto.split("\\b"); // Divide por límites de palabras
+                        int posicion = 0;
+
+                        for (String palabra : palabras) {
+                            if (palabrasReservadas.contains(palabra)) {
+                                doc.setCharacterAttributes(
+                                        posicion, palabra.length(), estiloPalabraReservada, true
+                                );
+                            }
+                            posicion += palabra.length();
+                        }
+                    } catch (Exception ex) {
+                        ex.printStackTrace();
+                    }
+                });
+            }
+        });
     }
+
+    private final Set<String> palabrasReservadas = Set.of(
+            "int", "float", "boolean", "string", "if", "else", "while", "print", "true", "false"
+    );
 
     @SuppressWarnings("unchecked")
     // <editor-fold defaultstate="collapsed" desc="Generated Code">//GEN-BEGIN:initComponents
@@ -61,7 +135,7 @@ public class Compiler extends javax.swing.JFrame {
         jmFile = new javax.swing.JMenu();
         jtbnNew = new javax.swing.JMenuItem();
         jbtnOpen = new javax.swing.JMenuItem();
-        jtbnSave = new javax.swing.JMenuItem();
+        jbtnSave = new javax.swing.JMenuItem();
         jmHelp = new javax.swing.JMenu();
         jbtnAbout = new javax.swing.JMenuItem();
 
@@ -215,13 +289,28 @@ public class Compiler extends javax.swing.JFrame {
         jmFile.setText("Archivo");
 
         jtbnNew.setText("Nuevo");
+        jtbnNew.addActionListener(new java.awt.event.ActionListener() {
+            public void actionPerformed(java.awt.event.ActionEvent evt) {
+                jtbnNewActionPerformed(evt);
+            }
+        });
         jmFile.add(jtbnNew);
 
         jbtnOpen.setText("Abrir");
+        jbtnOpen.addActionListener(new java.awt.event.ActionListener() {
+            public void actionPerformed(java.awt.event.ActionEvent evt) {
+                jbtnOpenActionPerformed(evt);
+            }
+        });
         jmFile.add(jbtnOpen);
 
-        jtbnSave.setText("Guardar");
-        jmFile.add(jtbnSave);
+        jbtnSave.setText("Guardar");
+        jbtnSave.addActionListener(new java.awt.event.ActionListener() {
+            public void actionPerformed(java.awt.event.ActionEvent evt) {
+                jbtnSaveActionPerformed(evt);
+            }
+        });
+        jmFile.add(jbtnSave);
 
         jMenuBar1.add(jmFile);
 
@@ -250,8 +339,110 @@ public class Compiler extends javax.swing.JFrame {
 
     private void btnLexicoActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_btnLexicoActionPerformed
         // TODO add your handling code here:
-        analyzeCode();
+        LexicalAnalyzer lexer = new LexicalAnalyzer();
+        String code = jtpCode.getText();
+        List<Token> tokens = lexer.analyze(code);
+        List<LexicalError> errors = lexer.getErrors();
+        jtaConsole.setText("");
+
+        if (!errors.isEmpty()) {
+            StringBuilder sbErrores = new StringBuilder("Errores léxicos detectados:\n");
+            for (LexicalError error : errors) {
+                sbErrores.append(error.toString()).append("\n");
+            }
+            jtaConsole.setText(sbErrores.toString());
+        } else {
+            jtaConsole.setText("Análisis léxico completado sin errores.");
+        }
+
+        actualizarTablaSimbolos(tokens);
+        //analyzeCode();
+
     }//GEN-LAST:event_btnLexicoActionPerformed
+
+    private void jtbnNewActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_jtbnNewActionPerformed
+        int option = JOptionPane.showConfirmDialog(
+                null,
+                "¿Deseas guardar los cambios actuales?",
+                "Nuevo Archivo",
+                JOptionPane.YES_NO_CANCEL_OPTION
+        );
+
+        if (option == JOptionPane.YES_OPTION) {
+            jbtnSave.doClick(); // Simula el clic del botón Guardar
+        } else if (option == JOptionPane.CANCEL_OPTION) {
+            return; // Cancela la operación
+        }
+
+        jtpCode.setText(""); // Limpia el área de texto
+        jtaConsole.setText(""); // Limpia la consola (si aplica)
+        DefaultTableModel modeloTabla = (DefaultTableModel) tblSymbols.getModel();
+        modeloTabla.setRowCount(0);
+    }//GEN-LAST:event_jtbnNewActionPerformed
+
+    private void jbtnOpenActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_jbtnOpenActionPerformed
+        JFileChooser fileChooser = new JFileChooser();
+        FileNameExtensionFilter filter = new FileNameExtensionFilter("Archivos MSC (*.msc)", "msc");
+        fileChooser.setFileFilter(filter);
+        jtpCode.setText("");
+
+        int option = fileChooser.showOpenDialog(null);
+
+        if (option == JFileChooser.APPROVE_OPTION) {
+            try {
+                File file = fileChooser.getSelectedFile();
+
+                // Verificar que el archivo tenga la extensión ".msc"
+                if (!file.getName().endsWith(".msc")) {
+                    JOptionPane.showMessageDialog(null, "El archivo seleccionado no tiene la extensión .msc", "Error", JOptionPane.ERROR_MESSAGE);
+                    return;
+                }
+
+                DefaultTableModel modeloTabla = (DefaultTableModel) tblSymbols.getModel();
+                modeloTabla.setRowCount(0);
+
+                BufferedReader reader = new BufferedReader(new FileReader(file));
+                StringBuilder content = new StringBuilder();
+                String line;
+
+                while ((line = reader.readLine()) != null) {
+                    content.append(line).append("\n");
+                }
+
+                reader.close();
+                jtpCode.setText(content.toString()); // Carga el contenido en el área de texto
+                JOptionPane.showMessageDialog(null, "Archivo abierto: " + file.getAbsolutePath());
+            } catch (IOException ex) {
+                JOptionPane.showMessageDialog(null, "Error al abrir el archivo: " + ex.getMessage());
+            }
+        }
+    }//GEN-LAST:event_jbtnOpenActionPerformed
+
+    private void jbtnSaveActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_jbtnSaveActionPerformed
+        JFileChooser fileChooser = new JFileChooser();
+        FileNameExtensionFilter filter = new FileNameExtensionFilter("Archivos MSC (*.msc)", "msc");
+        fileChooser.setFileFilter(filter);
+
+        int option = fileChooser.showSaveDialog(null);
+
+        if (option == JFileChooser.APPROVE_OPTION) {
+            try {
+                File file = fileChooser.getSelectedFile();
+
+                // Asegurarse de que el archivo tenga la extensión ".msc"
+                if (!file.getName().endsWith(".msc")) {
+                    file = new File(file.getAbsolutePath() + ".msc");
+                }
+
+                FileWriter writer = new FileWriter(file);
+                writer.write(jtpCode.getText()); // Guarda el contenido del área de texto
+                writer.close();
+                JOptionPane.showMessageDialog(null, "Archivo guardado con éxito en: " + file.getAbsolutePath());
+            } catch (IOException ex) {
+                JOptionPane.showMessageDialog(null, "Error al guardar el archivo: " + ex.getMessage());
+            }
+        }
+    }//GEN-LAST:event_jbtnSaveActionPerformed
 
     /**
      * @param args the command line arguments
@@ -288,218 +479,18 @@ public class Compiler extends javax.swing.JFrame {
         });
     }
 
-    public class Token {
+    private void actualizarTablaSimbolos(List<Token> tokens) {
+        // Modelo de tabla
+        DefaultTableModel modelo = (DefaultTableModel) tblSymbols.getModel();
+        modelo.setRowCount(0); // Limpia la tabla
 
-        private String type;
-        private String value;
-
-        public Token(String type, String value) {
-            this.type = type;
-            this.value = value;
-        }
-
-        public String getType() {
-            return type;
-        }
-
-        public String getValue() {
-            return value;
-        }
-
-        @Override
-        public String toString() {
-            return String.format("Type: %s, Value: %s", type, value);
-        }
-    }
-
-    public class SymbolTable {
-
-        private HashMap<String, Symbol> symbols;
-        private int nextOffset;  // Tracks the next available offset for each new symbol
-
-        public SymbolTable() {
-            symbols = new HashMap<>();
-            nextOffset = 0;  // Initialize offset at 0
-        }
-
-        public void addSymbol(String name, String type, int lineNumber, String value) {
-            // Assign the current offset to this symbol and increment offset for the next symbol
-            symbols.put(name, new Symbol(name, type, lineNumber, nextOffset, value));
-            nextOffset += 4;  // Assuming each symbol takes 4 bytes (adjust as necessary)
-        }
-
-        public Symbol getSymbol(String name) {
-            return symbols.get(name);
-        }
-
-        public HashMap<String, Symbol> getSymbols() {
-            return symbols;
-        }
-    }
-
-// Clase para mantener el simbolo
-    public class Symbol {
-
-        private String name;
-        private String type;
-        private int lineNumber;
-        private int offset;  // New attribute for offset
-        private String value; // New attribute for the initial value
-
-        public Symbol(String name, String type, int lineNumber, int offset, String value) {
-            this.name = name;
-            this.type = type;
-            this.lineNumber = lineNumber;
-            this.offset = offset;
-            this.value = value;
-        }
-
-        public String getName() {
-            return name;
-        }
-
-        public String getType() {
-            return type;
-        }
-
-        public int getLineNumber() {
-            return lineNumber;
-        }
-
-        public int getOffset() {
-            return offset;
-        }
-
-        public String getValue() {
-            return value;
-        }
-
-        public void setValue(String value) {
-            this.value = value;
-        }
-    }
-
-    public class LexicalAnalyzer {
-
-        private SymbolTable symbolTable;
-        private ArrayList<Token> tokens;
-        private StringBuilder errors;
-        private boolean expectingIdentifier;
-        private String currentType;
-
-        private final String[] keywords = {"int", "float", "boolean", "string", "if", "else", "while", "return"};
-
-        public LexicalAnalyzer() {
-            symbolTable = new SymbolTable();
-            tokens = new ArrayList<>();
-            errors = new StringBuilder();
-            expectingIdentifier = false;
-            currentType = null;
-        }
-
-        public void analyze(String code) {
-            tokens.clear();
-            errors.setLength(0);
-            expectingIdentifier = false;
-            currentType = null;
-
-            String[] lines = code.split("\\n");
-
-            Pattern pattern = Pattern.compile(
-                    "\\b(int|float|boolean|string|if|else|while|return)\\b|"
-                    + // Keywords
-                    "\\b(true|false)\\b|"
-                    + // Boolean literals
-                    "\"[^\"]*\"|"
-                    + // String literals
-                    "[a-zA-Z_][a-zA-Z0-9_]*|"
-                    + // Identifiers
-                    "\\d+\\.\\d+|\\d+|"
-                    + // Integer and float literals
-                    "\\+|\\-|\\*|\\/|=|==|!=|<=|>=|<|>|\\(|\\)|\\{|\\}|;|," // Operators and symbols
-            );
-
-            for (int lineNum = 0; lineNum < lines.length; lineNum++) {
-                Matcher matcher = pattern.matcher(lines[lineNum]);
-                String pendingValue = null;  // Store value if an assignment is found
-
-                while (matcher.find()) {
-                    String match = matcher.group();
-
-                    if (isKeyword(match)) {
-                        tokens.add(new Token("KEYWORD", match));
-
-                        // Establece el tipo actual si es una palabra clave de tipo de datos
-                        if (match.equals("int") || match.equals("float") || match.equals("boolean") || match.equals("string")) {
-                            currentType = match;
-                            expectingIdentifier = true;
-                        } else {
-                            currentType = null;
-                        }
-                    } else if (match.equals("true") || match.equals("false")) { // Boolean literals
-                        tokens.add(new Token("BOOLEAN_LITERAL", match));
-                        pendingValue = match;  // Capture value if part of a declaration
-                    } else if (match.startsWith("\"") && match.endsWith("\"")) { // String literals
-                        tokens.add(new Token("STRING_LITERAL", match));
-                        pendingValue = match;  // Capture value if part of a declaration
-                    } else if (match.matches("[a-zA-Z_][a-zA-Z0-9_]*")) { // Identifiers
-                        if (expectingIdentifier) {
-                            tokens.add(new Token("IDENTIFIER", match));
-
-                            // Agregar identificador a la tabla de símbolos con el tipo actual y el valor inicial
-                            if (!symbolTable.getSymbols().containsKey(match)) {
-                                symbolTable.addSymbol(match, currentType, lineNum + 1, pendingValue);
-                            }
-                            expectingIdentifier = false;
-                            currentType = null;
-                            pendingValue = null;
-                        } else if (!symbolTable.getSymbols().containsKey(match)) {
-                            errors.append("Error en línea ").append(lineNum + 1)
-                                    .append(": identificador '").append(match).append("' sin tipo de dato.\n");
-                        } else {
-                            tokens.add(new Token("IDENTIFIER", match));
-                        }
-                    } else if (match.matches("\\d+\\.\\d+")) { // Float literals
-                        tokens.add(new Token("FLOAT_LITERAL", match));
-                        pendingValue = match;  // Capture value if part of a declaration
-                    } else if (match.matches("\\d+")) { // Integer literals
-                        tokens.add(new Token("INT_LITERAL", match));
-                        pendingValue = match;  // Capture value if part of a declaration
-                    } else if (match.equals("=")) { // Assignment operator
-                        expectingIdentifier = false;  // No longer expecting a new identifier
-                    } else {
-                        tokens.add(new Token("SYMBOL", match));
-                    }
-                }
-
-                // Revision de declaraciones incompletas
-                if (expectingIdentifier) {
-                    errors.append("Error en línea ").append(lineNum + 1).append(": declaración incompleta, se esperaba un identificador después de tipo de dato.\n");
-                    expectingIdentifier = false;
-                    currentType = null;
-                }
-            }
-        }
-
-        private boolean isKeyword(String word) {
-            for (String keyword : keywords) {
-                if (keyword.equals(word)) {
-                    return true;
-                }
-            }
-            return false;
-        }
-
-        public ArrayList<Token> getTokens() {
-            return tokens;
-        }
-
-        public String getErrors() {
-            return errors.toString();
-        }
-
-        public SymbolTable getSymbolTable() {
-            return symbolTable;
+        for (Token token : tokens) {
+            modelo.addRow(new Object[]{
+                token.getType(),
+                token.getLexeme(),
+                token.getLine(),
+                token.getColumn()
+            });
         }
     }
 
@@ -510,39 +501,6 @@ public class Compiler extends javax.swing.JFrame {
         this.repaint();
     }
 
-    private void analyzeCode() {
-        String code = jtpCode.getText();
-        LexicalAnalyzer lexicalAnalyzer = new LexicalAnalyzer();
-        lexicalAnalyzer.analyze(code);
-
-        // Mostrar errores en la consola JTextArea
-        String errorMessages = lexicalAnalyzer.getErrors();
-        jtaConsole.setText(errorMessages.isEmpty() ? "Compilación correcta" : errorMessages);
-
-        // Actualiza la tabla de simbolos
-        updateSymbolTable(lexicalAnalyzer.getSymbolTable());
-    }
-
-    private void updateSymbolTable(SymbolTable symbolTable) {
-        DefaultTableModel model = new DefaultTableModel();
-        model.addColumn("Identificador");
-        model.addColumn("Tipo de Dato");
-        model.addColumn("Número de Línea");
-        model.addColumn("Offset");
-        //model.addColumn("Valor Inicial");
-
-        for (Symbol symbol : symbolTable.getSymbols().values()) {
-            model.addRow(new Object[]{
-                symbol.getName(),
-                symbol.getType(),
-                symbol.getLineNumber(),
-                symbol.getOffset(),
-                //symbol.getValue()
-            });
-        }
-
-        tblSymbols.setModel(model);
-    }
 
     // Variables declaration - do not modify//GEN-BEGIN:variables
     private javax.swing.JButton btnLexico;
@@ -561,11 +519,11 @@ public class Compiler extends javax.swing.JFrame {
     private javax.swing.JScrollPane jScrollPane3;
     private javax.swing.JMenuItem jbtnAbout;
     private javax.swing.JMenuItem jbtnOpen;
+    private javax.swing.JMenuItem jbtnSave;
     private javax.swing.JMenu jmFile;
     private javax.swing.JMenu jmHelp;
     private javax.swing.JTextArea jtaConsole;
     private javax.swing.JMenuItem jtbnNew;
-    private javax.swing.JMenuItem jtbnSave;
     private javax.swing.JTextPane jtpCode;
     private javax.swing.JTable tblSymbols;
     // End of variables declaration//GEN-END:variables
