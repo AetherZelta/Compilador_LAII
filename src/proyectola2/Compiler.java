@@ -49,6 +49,14 @@ public class Compiler extends javax.swing.JFrame {
         SetImageLabel(jLabel1, "src/images/tecnm4.png");
         SetImageLabel(jLabel2, "src/images/tecnm3.png");
 
+        // Configuración inicial de los botones
+        btnLexico.setBackground(new Color(0, 153, 51)); // Verde inicial
+        btnSintactico.setBackground(new Color(204, 204, 204)); // Gris inicial
+        btnSemantico.setBackground(new Color(204, 204, 204));// Gris inicial
+
+        btnLexico.setOpaque(true);
+        btnSintactico.setOpaque(true);
+        btnSemantico.setOpaque(true);
     }
 
     private void init() {
@@ -105,6 +113,14 @@ public class Compiler extends javax.swing.JFrame {
                 });
             }
         });
+    }
+
+    private void resetearBotones() {
+        btnLexico.setBackground(new Color(0, 153, 51)); // Verde
+        btnSintactico.setBackground(new Color(204, 204, 204)); // Gris
+        btnSemantico.setBackground(new Color(204, 204, 204)); // Gris
+        btnSintactico.setEnabled(false);
+        btnSemantico.setEnabled(false);
     }
 
     private final Set<String> palabrasReservadas = Set.of(
@@ -165,6 +181,11 @@ public class Compiler extends javax.swing.JFrame {
 
         btnSintactico.setText("Sintactico");
         btnSintactico.setEnabled(false);
+        btnSintactico.addActionListener(new java.awt.event.ActionListener() {
+            public void actionPerformed(java.awt.event.ActionEvent evt) {
+                btnSintacticoActionPerformed(evt);
+            }
+        });
 
         btnSemantico.setText("Semantico");
         btnSemantico.setEnabled(false);
@@ -351,8 +372,12 @@ public class Compiler extends javax.swing.JFrame {
                 sbErrores.append(error.toString()).append("\n");
             }
             jtaConsole.setText(sbErrores.toString());
+            btnLexico.setBackground(new Color(255, 0, 0)); // Rojo si hay errores
+            btnSintactico.setEnabled(false);
         } else {
             jtaConsole.setText("Análisis léxico completado sin errores.");
+            btnLexico.setBackground(new Color(255, 140, 0)); // Naranja
+            btnSintactico.setEnabled(true);
         }
 
         actualizarTablaSimbolos(tokens);
@@ -378,6 +403,7 @@ public class Compiler extends javax.swing.JFrame {
         jtaConsole.setText(""); // Limpia la consola (si aplica)
         DefaultTableModel modeloTabla = (DefaultTableModel) tblSymbols.getModel();
         modeloTabla.setRowCount(0);
+        resetearBotones();
     }//GEN-LAST:event_jtbnNewActionPerformed
 
     private void jbtnOpenActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_jbtnOpenActionPerformed
@@ -411,6 +437,7 @@ public class Compiler extends javax.swing.JFrame {
 
                 reader.close();
                 jtpCode.setText(content.toString()); // Carga el contenido en el área de texto
+                resetearBotones();
                 JOptionPane.showMessageDialog(null, "Archivo abierto: " + file.getAbsolutePath());
             } catch (IOException ex) {
                 JOptionPane.showMessageDialog(null, "Error al abrir el archivo: " + ex.getMessage());
@@ -443,6 +470,29 @@ public class Compiler extends javax.swing.JFrame {
             }
         }
     }//GEN-LAST:event_jbtnSaveActionPerformed
+
+    private void btnSintacticoActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_btnSintacticoActionPerformed
+        // TODO add your handling code here:
+        SyntaxAnalyzer syntaxAnalyzer = new SyntaxAnalyzer();
+        LexicalAnalyzer lexer = new LexicalAnalyzer();
+        String code = jtpCode.getText();
+        List<Token> tokens = lexer.analyze(code);
+        List<SyntaxError> errors = syntaxAnalyzer.analyze(tokens);
+
+        if (!errors.isEmpty()) {
+            StringBuilder sbErrores = new StringBuilder("Errores sintácticos detectados:\n");
+            for (SyntaxError error : errors) {
+                sbErrores.append(error.toString()).append("\n");
+            }
+            jtaConsole.setText(sbErrores.toString());
+            btnSintactico.setBackground(new Color(255, 0, 0)); // Rojo si hay errores
+        } else {
+            jtaConsole.setText("Análisis sintáctico completado sin errores.");
+            btnLexico.setBackground(new Color(255, 0, 0)); // Léxico pasa a rojo
+            btnSintactico.setBackground(new Color(255, 140, 0)); // Sintáctico pasa a naranja
+            btnSemantico.setEnabled(true); // Opcional: activar el botón semántico
+        }
+    }//GEN-LAST:event_btnSintacticoActionPerformed
 
     /**
      * @param args the command line arguments
