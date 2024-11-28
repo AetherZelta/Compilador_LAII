@@ -166,6 +166,61 @@ public class SyntaxAnalyzer {
         }
     }
 
+    private Object evaluateExpression() {
+        if (currentToken.getType() == 400) { // identifier
+            SymbolTableEntry entry = symbolTable.get(currentToken.getLexeme());
+            if (entry != null) {
+                // Check if the variable is initialized before using its value
+                if (!entry.isInitialized()) {
+                    reportError("2003", "Variable no inicializada: " + currentToken.getLexeme());
+                    return null;
+                }
+                return entry.getCurrentValue();
+            }
+            return null;
+        } else if (isLiteral(currentToken.getType())) {
+            switch (currentToken.getType()) {
+                case 401: // INT_LITERAL
+                    return Integer.parseInt(currentToken.getLexeme());
+                case 402: // FLOAT_LITERAL
+                    return Float.parseFloat(currentToken.getLexeme());
+                case 403: // STRING_LITERAL
+                    return currentToken.getLexeme().replace("\"", "");
+                case 108: // true
+                    return true;
+                case 109: // false
+                    return false;
+            }
+        }
+        return null;
+    }
+
+    public String getDetailedAnalysisResults() {
+        StringBuilder result = new StringBuilder();
+
+        if (errors.isEmpty()) {
+            result.append("Análisis sintáctico completado exitosamente.\n");
+        } else {
+            result.append("Se encontraron los siguientes errores sintácticos:\n");
+            for (SyntaxError error : errors) {
+                result.append(error.toString()).append("\n");
+            }
+        }
+
+        result.append("\nEstado de la tabla de símbolos:\n");
+        symbolTable.forEach((key, value) -> {
+            result.append(String.format(
+                    "Variable: %s, Tipo: %s, Valor actual: %s, Inicializada: %s\n",
+                    key,
+                    getTypeString(value.getType()),
+                    value.getCurrentValue(),
+                    value.isInitialized() ? "Sí" : "No"
+            ));
+        });
+
+        return result.toString();
+    }
+
     private void declaration() {
         int type = currentToken.getType();
         advance();
@@ -178,7 +233,7 @@ public class SyntaxAnalyzer {
                 reportError("2001", "Variable ya declarada: " + idName);
             } else {
                 // Agregar a la tabla de símbolos
-                symbolTable.put(idName, new SymbolTableEntry(idName, type));
+                symbolTable.put(idName, new SymbolTableEntry(idName, type, false));
             }
             advance();
         } else {
@@ -188,11 +243,16 @@ public class SyntaxAnalyzer {
 
     private void assignment() {
         String idName = currentToken.getLexeme();
+        SymbolTableEntry symbolEntry = symbolTable.get(idName);
 
         // Verificar si la variable existe
-        if (!symbolTable.containsKey(idName)) {
+        if (symbolEntry == null) {
             reportError("2002", "Variable no declarada: " + idName);
+            return;
         }
+        /*if (!symbolTable.containsKey(idName)) {
+            reportError("2002", "Variable no declarada: " + idName);
+        }*/
 
         advance();
 
@@ -201,6 +261,8 @@ public class SyntaxAnalyzer {
             recover(304);
             return;
         }
+        Object value = evaluateExpression();
+        symbolEntry.setValue(value);
 
         expression();
     }
@@ -274,7 +336,7 @@ public class SyntaxAnalyzer {
         } else if (match(252)) { // !
             term();
         } else {
-            reportError("identificador, literal, ( o !", currentToken);
+            reportError("Expresion, ( o !", currentToken);
         }
     }
 
@@ -443,7 +505,7 @@ class SyntaxError {
     }
 }
 
-class SymbolTableEntry {
+/*class SymbolTableEntry {
 
     private final String name;
     private final int type;
@@ -471,4 +533,4 @@ class SymbolTableEntry {
     public void setValue(Object value) {
         this.value = value;
     }
-}
+}*/

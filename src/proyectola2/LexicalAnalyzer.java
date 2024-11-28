@@ -62,6 +62,26 @@ public class LexicalAnalyzer {
         while (position < input.length()) {
             char currentChar = input.charAt(position);
 
+            if (currentChar == '/' && position + 1 < input.length() && input.charAt(position + 1) == '/') {
+                analyzeSingleLineComment();
+                continue;
+            }
+
+            // Check for multi-line comment
+            if (currentChar == '/' && position + 1 < input.length() && input.charAt(position + 1) == '*') {
+                analyzeMultiLineComment();
+                continue;
+            }
+
+            // Check for invalid single-line comment attempt (excluding multi-line comments)
+            if (currentChar == '/' && position + 1 < input.length()
+                    && input.charAt(position + 1) != '/'
+                    && input.charAt(position + 1) != '*') {
+                reportError(1006, "Formato de comentario de línea inválido. Use '//' para comentarios de una línea");
+                position++;
+                column++;
+                continue;
+            }
             // Ignorar espacios en blanco y saltos de línea
             if (Character.isWhitespace(currentChar)) {
                 if (currentChar == '\n') {
@@ -107,11 +127,92 @@ public class LexicalAnalyzer {
         return tokens;
     }
 
+    private void analyzeSingleLineComment() {
+        // Skip the '//'
+        position += 2;
+        column += 2;
+
+        // Continue until end of line or end of input
+        while (position < input.length() && input.charAt(position) != '\n') {
+            position++;
+            column++;
+        }
+
+        // If ended by newline, update line and column
+        if (position < input.length() && input.charAt(position) == '\n') {
+            line++;
+            column = 1;
+            position++;
+        }
+    }
+
+    private void analyzeMultiLineComment() {
+        // Skip the '/*'
+        position += 2;
+        column += 2;
+
+        // Track nested comment depth
+        int depth = 1;
+
+        while (position < input.length()) {
+            if (position + 1 < input.length()) {
+                // Check for nested comments
+                if (input.charAt(position) == '/' && input.charAt(position + 1) == '*') {
+                    depth++;
+                    position += 2;
+                    column += 2;
+                    continue;
+                }
+
+                // Check for comment end
+                if (input.charAt(position) == '*' && input.charAt(position + 1) == '/') {
+                    depth--;
+                    position += 2;
+                    column += 2;
+
+                    // If all nested comments are closed, exit
+                    if (depth == 0) {
+                        break;
+                    }
+                    continue;
+                }
+            }
+
+            // Handle newlines within comment
+            if (input.charAt(position) == '\n') {
+                line++;
+                column = 1;
+            } else {
+                column++;
+            }
+            position++;
+        }
+
+        // Check if comment was not closed
+        if (depth > 0) {
+            reportError(1005, "Comentario de múltiples líneas no cerrado");
+        }
+    }
+
     // Análisis de identificadores y palabras reservadas
     private void analyzeIdentifier() {
         StringBuilder lexeme = new StringBuilder();
         int startColumn = column;
 
+        // Validar que el identificador comience con una letra o guión bajo
+        if (!Character.isLetter(input.charAt(position)) && input.charAt(position) != '_') {
+            reportError(1001, "Identificador debe comenzar con una letra o guión bajo: " + input.charAt(position));
+
+            // Saltar el token inválido
+            while (position < input.length()
+                    && (Character.isLetterOrDigit(input.charAt(position)) || input.charAt(position) == '_')) {
+                position++;
+                column++;
+            }
+            return;
+        }
+
+        // Construir el identificador
         while (position < input.length()
                 && (Character.isLetterOrDigit(input.charAt(position)) || input.charAt(position) == '_')) {
             lexeme.append(input.charAt(position));
@@ -121,15 +222,17 @@ public class LexicalAnalyzer {
 
         String identifier = lexeme.toString();
 
+        // Verificar el formato del identificador
+        if (!identifier.matches("[a-zA-Z_][a-zA-Z0-9_]*")) {
+            reportError(1001, "Identificador desconocido o mal formado: " + identifier);
+            return;
+        }
+
         // Verificar si es palabra reservada
         if (symbolTable.containsKey(identifier)) {
             tokens.add(new Token(symbolTable.get(identifier), identifier, line, startColumn));
         } else {
-            if (identifier.matches("[a-zA-Z_][a-zA-Z0-9_]*")) {
-                tokens.add(new Token(400, identifier, line, startColumn)); // Identificador válido
-            } else {
-                reportError(1001, "Identificador desconocido o mal formado: " + identifier);
-            }
+            tokens.add(new Token(400, identifier, line, startColumn)); // Identificador válido
         }
     }
 
@@ -138,6 +241,18 @@ public class LexicalAnalyzer {
         StringBuilder lexeme = new StringBuilder();
         int startColumn = column;
         boolean isFloat = false;
+
+        if (input.charAt(position) == '0' && position + 1 < input.length()
+                && Character.isDigit(input.charAt(position + 1))) {
+            reportError(1011, "Formato inválido de número: " + input.charAt(position) + input.charAt(position + 1));
+
+            // Consumir el número inválido
+            while (position < input.length() && Character.isDigit(input.charAt(position))) {
+                position++;
+                column++;
+            }
+            return;
+        }
 
         while (position < input.length()) {
             char currentChar = input.charAt(position);
@@ -151,6 +266,17 @@ public class LexicalAnalyzer {
                 isFloat = true;
                 position++;
                 column++;
+            } else if (Character.isLetter(currentChar) || currentChar == '_') {
+                // Si hay una letra o guión bajo después del número, es un error
+                reportError(1010, "Identificador inválido comienza con número: " + lexeme + currentChar);
+
+                // Consumir el token inválido
+                while (position < input.length()
+                        && (Character.isLetterOrDigit(input.charAt(position)) || input.charAt(position) == '_')) {
+                    position++;
+                    column++;
+                }
+                return;
             } else {
                 break;
             }
@@ -303,7 +429,7 @@ public class LexicalAnalyzer {
 }
 
 // Clases auxiliares
-class Token {
+/*class Token {
 
     private final int type;
     private final String lexeme;
@@ -339,7 +465,7 @@ class Token {
         return String.format("Token{type=%d, lexeme='%s', line=%d, column=%d}",
                 type, lexeme, line, column);
     }
-}
+}*/
 
 class LexicalError {
 

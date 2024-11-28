@@ -5,13 +5,19 @@
 package proyectola2;
 
 import compilerTools.Functions;
+import java.awt.BorderLayout;
 import java.awt.Color;
+import java.awt.Desktop;
+import java.awt.GridLayout;
 import java.awt.Image;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.net.URI;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -19,11 +25,17 @@ import java.util.Map;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import javax.swing.BoxLayout;
 import javax.swing.Icon;
 import javax.swing.ImageIcon;
+import javax.swing.JButton;
 import javax.swing.JFileChooser;
+import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JOptionPane;
+import javax.swing.JPanel;
+import javax.swing.JScrollPane;
+import javax.swing.SwingConstants;
 import javax.swing.SwingUtilities;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
@@ -63,7 +75,7 @@ public class Compiler extends javax.swing.JFrame {
         Functions.setLineNumberOnJTextComponent(jtpCode);
 
         DefaultTableModel modeloTabla = new DefaultTableModel(
-                new Object[]{"Tipo", "Lexema", "Línea", "Columna"}, 0);
+                new Object[]{"Tipo", "Lexema", "Línea", "Columna", "Valor"}, 0);
         tblSymbols.setModel(modeloTabla);
 
         StyledDocument doc = jtpCode.getStyledDocument();
@@ -114,6 +126,7 @@ public class Compiler extends javax.swing.JFrame {
             }
         });
     }
+    private List<Token> tokens;
 
     private void resetearBotones() {
         btnLexico.setBackground(new Color(0, 153, 51)); // Verde
@@ -170,7 +183,7 @@ public class Compiler extends javax.swing.JFrame {
 
         jPanel5.setBackground(new java.awt.Color(102, 102, 102));
 
-        btnLexico.setBackground(new java.awt.Color(0, 153, 51));
+        btnLexico.setBackground(new java.awt.Color(255, 255, 255));
         btnLexico.setForeground(new java.awt.Color(0, 0, 0));
         btnLexico.setText("Lexico");
         btnLexico.addActionListener(new java.awt.event.ActionListener() {
@@ -189,6 +202,11 @@ public class Compiler extends javax.swing.JFrame {
 
         btnSemantico.setText("Semantico");
         btnSemantico.setEnabled(false);
+        btnSemantico.addActionListener(new java.awt.event.ActionListener() {
+            public void actionPerformed(java.awt.event.ActionEvent evt) {
+                btnSemanticoActionPerformed(evt);
+            }
+        });
 
         javax.swing.GroupLayout jPanel5Layout = new javax.swing.GroupLayout(jPanel5);
         jPanel5.setLayout(jPanel5Layout);
@@ -338,6 +356,11 @@ public class Compiler extends javax.swing.JFrame {
         jmHelp.setText("Ayuda");
 
         jbtnAbout.setText("Acerca de");
+        jbtnAbout.addActionListener(new java.awt.event.ActionListener() {
+            public void actionPerformed(java.awt.event.ActionEvent evt) {
+                jbtnAboutActionPerformed(evt);
+            }
+        });
         jmHelp.add(jbtnAbout);
 
         jMenuBar1.add(jmHelp);
@@ -362,9 +385,10 @@ public class Compiler extends javax.swing.JFrame {
         // TODO add your handling code here:
         LexicalAnalyzer lexer = new LexicalAnalyzer();
         String code = jtpCode.getText();
-        List<Token> tokens = lexer.analyze(code);
+        tokens = lexer.analyze(code);
         List<LexicalError> errors = lexer.getErrors();
         jtaConsole.setText("");
+        resetearBotones();
 
         if (!errors.isEmpty()) {
             StringBuilder sbErrores = new StringBuilder("Errores léxicos detectados:\n");
@@ -376,7 +400,7 @@ public class Compiler extends javax.swing.JFrame {
             btnSintactico.setEnabled(false);
         } else {
             jtaConsole.setText("Análisis léxico completado sin errores.");
-            btnLexico.setBackground(new Color(255, 140, 0)); // Naranja
+            btnLexico.setBackground(new Color(21, 198, 37)); // Verde
             btnSintactico.setEnabled(true);
         }
 
@@ -477,7 +501,12 @@ public class Compiler extends javax.swing.JFrame {
         LexicalAnalyzer lexer = new LexicalAnalyzer();
         String code = jtpCode.getText();
         List<Token> tokens = lexer.analyze(code);
-        List<SyntaxError> errors = syntaxAnalyzer.analyze(tokens);
+        btnSemantico.setBackground(new Color(204, 204, 204)); // Gris
+        btnSemantico.setEnabled(false);
+        //btnLexico.setEnabled(false);
+
+        syntaxAnalyzer.analyze(tokens);
+        List<SyntaxError> errors = syntaxAnalyzer.getErrors();
 
         if (!errors.isEmpty()) {
             StringBuilder sbErrores = new StringBuilder("Errores sintácticos detectados:\n");
@@ -486,13 +515,132 @@ public class Compiler extends javax.swing.JFrame {
             }
             jtaConsole.setText(sbErrores.toString());
             btnSintactico.setBackground(new Color(255, 0, 0)); // Rojo si hay errores
+            
         } else {
             jtaConsole.setText("Análisis sintáctico completado sin errores.");
-            btnLexico.setBackground(new Color(255, 0, 0)); // Léxico pasa a rojo
-            btnSintactico.setBackground(new Color(255, 140, 0)); // Sintáctico pasa a naranja
+            btnLexico.setBackground(new Color(21, 198, 37)); // Léxico pasa a verde
+            btnSintactico.setBackground(new Color(21, 198, 37)); // Sintáctico pasa a verde
             btnSemantico.setEnabled(true); // Opcional: activar el botón semántico
         }
+
+        actualizarTablaSimbolos(tokens);
     }//GEN-LAST:event_btnSintacticoActionPerformed
+
+    private void btnSemanticoActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_btnSemanticoActionPerformed
+        LexicalAnalyzer lexer = new LexicalAnalyzer();
+        SemanticAnalyzer semanticAnalyzer = new SemanticAnalyzer();
+        //btnSintactico.setEnabled(false);
+
+        // Obtener el código del área de texto
+        String code = jtpCode.getText();
+
+        // Realizar análisis léxico
+        List<Token> tokens = lexer.analyze(code);
+
+        // Realizar análisis semántico
+        List<SemanticError> errors = semanticAnalyzer.analyze(tokens);
+
+        // Manejar los resultados del análisis semántico
+        if (!errors.isEmpty()) {
+            // Si hay errores semánticos
+            StringBuilder sbErrores = new StringBuilder("Errores semánticos detectados:\n");
+            for (SemanticError error : errors) {
+                sbErrores.append(error.toString()).append("\n");
+            }
+
+            // Mostrar errores en la consola
+            jtaConsole.setText(sbErrores.toString());
+
+            // Cambiar el color del botón a rojo
+            btnSemantico.setBackground(new Color(255, 0, 0));
+        } else {
+            // Si no hay errores
+            jtaConsole.setText("Análisis semántico completado sin errores.");
+
+            // Cambiar el color del botón a verde
+            btnSemantico.setBackground(new Color(21, 198, 37));
+
+            // Opcional: Habilitar siguiente paso o botón
+            // Por ejemplo, btnGeneradorCodigo.setEnabled(true);
+        }
+
+        // Actualizar tabla de símbolos
+        actualizarTablaSimbolos(tokens);
+    }//GEN-LAST:event_btnSemanticoActionPerformed
+
+    private void jbtnAboutActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_jbtnAboutActionPerformed
+        // Crear el marco "Acerca de"
+        JFrame aboutFrame = new JFrame("Acerca de");
+        aboutFrame.setSize(600, 500);
+        aboutFrame.setLayout(new BorderLayout());
+
+        // Asegurar que se abre en el centro de la pantalla
+        aboutFrame.setLocationRelativeTo(null);
+
+        // Panel para imágenes y nombres
+        JPanel imagePanel = new JPanel();
+        imagePanel.setLayout(new GridLayout(2, 4, 10, 10)); // 2 filas (imágenes y nombres), 4 columnas
+
+        String[] authors = {"Isaac Salvador Bravo Estrada", "Luis Fernando Mendoza Javalera", "Maria del Carmen Chavez Patiño", "Guillermo Peasland Aguilar"}; // Nombres de autores
+
+        for (int i = 0; i < 4; i++) {
+            // Subpanel para cada autor (imagen y nombre)
+            JPanel authorPanel = new JPanel();
+            authorPanel.setLayout(new BorderLayout());
+
+            JLabel imageLabel = new JLabel();
+            imageLabel.setHorizontalAlignment(SwingConstants.CENTER);
+
+            ImageIcon image = new ImageIcon("src/images/autor" + (i + 1) + ".jpeg"); // Ruta de cada imagen
+            imageLabel.setIcon(new ImageIcon(image.getImage().getScaledInstance(100, 100, Image.SCALE_SMOOTH)));
+
+            JLabel nameLabel = new JLabel(authors[i]);
+            nameLabel.setHorizontalAlignment(SwingConstants.CENTER);
+
+            // Añadir imagen y nombre al panel del autor
+            authorPanel.add(imageLabel, BorderLayout.CENTER);
+            authorPanel.add(nameLabel, BorderLayout.SOUTH);
+
+            imagePanel.add(authorPanel); // Añadir panel del autor al panel principal
+        }
+
+        // Panel para la lista de PDFs
+        JPanel linkPanel = new JPanel();
+        linkPanel.setLayout(new GridLayout(0, 1, 5, 5)); // Una columna, espacio entre filas
+
+        // Arreglo con los nombres y enlaces de los PDF
+        PdfLink[] pdfLinks = {
+            new PdfLink("ACTIVIDAD LAII-A_A1", "src/documentacion/2024-08-19_TNM_CELAYA_LAII-A_A1_EQUIPO_03_20030048_BRAVO_ESTRADA_ISAAC_SALVADOR_AGO-DIC24.pdf"),
+            new PdfLink("ACTIVIDAD LAII-A_A2", "src/documentacion/2024-08-22_TNM_CELAYA_LAII-A_A2_EQUIPO_03_20030048_BRAVO_ESTRADA_ISAAC_SALVADOR_AGO-DIC24.pdf"),
+            new PdfLink("ACTIVIDAD LAII-A_A3", "src/documentacion/2024-08-27_TNM_CELAYA_LAII-A_A3_EQUIPO_03_20030048_BRAVO_ESTRADA_ISAAC_SALVADOR_AGO-DIC24.pdf"),
+            new PdfLink("ACTIVIDAD LAII-A_A4", "src/documentacion/2024-09-10_TNM_CELAYA_LAII-A_A4_EQUIPO_3_20030048_BRAVO_ESTRADA_ISAAC SALVADOR_AGO-DIC24.pdf"),
+            new PdfLink("ACTIVIDAD LAII-A_A5", "src/documentacion/2024-09-17_TNM_CELAYA_LAII-A_A5_EQUIPO_03_20030048_BRAVO_ESTRADA_ISAAC_SALVADOR_AGO-DIC24.pdf"),
+            new PdfLink("ACTIVIDAD LAII-A_A6", "src/documentacion/2024-10-07_TNM_CELAYA_LAII-A_A6_EQUIPO_03_20030048_BRAVO_ESTRADA_ISAAC_SALVADOR_AGO-DIC24.pdf"),
+            new PdfLink("ACTIVIDAD LAII-A_A7", "src/documentacion/2024-10-21_TNM_CELAYA_LAII-A_A7_EQUIPO_3_20030048_BRAVO_ESTRADA_ISAAC_SALVADOR_AGO-DIC24.pdf"),
+            new PdfLink("ACTIVIDAD LAII-A_A8", "src/documentacion/2024-11-11_TNM_CELAYA_LAII-A_A8_EQUIPO_3_20030048_BRAVO_ESTRADA_ISAAC_SALVADOR_AGO-DIC24.pdf"),};
+
+        // Añadir botones para cada PDF
+        for (PdfLink pdf : pdfLinks) {
+            JButton linkButton = new JButton(pdf.name); // Usa el nombre personalizado
+            linkButton.setHorizontalAlignment(SwingConstants.LEFT);
+            linkButton.addActionListener(e -> {
+                try {
+                    File file = new File(pdf.url); // Convierte la ruta en un archivo
+                    Desktop.getDesktop().open(file); // Usa Desktop.open para archivos locales
+                } catch (Exception ex) {
+                    JOptionPane.showMessageDialog(null, "No se pudo abrir el archivo: " + pdf.url);
+                }
+            });
+            linkPanel.add(linkButton);
+        }
+
+        // Añadir paneles a la ventana
+        aboutFrame.add(imagePanel, BorderLayout.NORTH);
+        aboutFrame.add(new JScrollPane(linkPanel), BorderLayout.CENTER);
+
+        // Hacer visible la ventana
+        aboutFrame.setVisible(true);
+    }//GEN-LAST:event_jbtnAboutActionPerformed
 
     /**
      * @param args the command line arguments
@@ -534,14 +682,36 @@ public class Compiler extends javax.swing.JFrame {
         DefaultTableModel modelo = (DefaultTableModel) tblSymbols.getModel();
         modelo.setRowCount(0); // Limpia la tabla
 
+        Map<String, SymbolTableEntry> symbolTable = SyntaxAnalyzer.getSymbolTable();
+
         for (Token token : tokens) {
+            Object valor = "N/A"; // Valor por defecto para tokens que no son variables
+
+            // Si es un identificador (variable), intentar obtener su valor
+            if (token.getType() == 400) { // 400 es el tipo de token para identificadores
+                SymbolTableEntry entry = symbolTable.get(token.getLexeme());
+                if (entry != null) {
+                    valor = entry.getCurrentValue();
+                }
+            }
+
+            // Agregar fila para TODOS los tokens, con valor para variables
+            modelo.addRow(new Object[]{
+                token.getType(),
+                token.getLexeme(),
+                token.getLine(),
+                token.getColumn(),
+                valor // Nueva columna con valor para variables, "N/A" para otros tokens
+            });
+        }
+        /*for (Token token : tokens) {
             modelo.addRow(new Object[]{
                 token.getType(),
                 token.getLexeme(),
                 token.getLine(),
                 token.getColumn()
             });
-        }
+        }*/
     }
 
     private void SetImageLabel(JLabel labelName, String root) {
