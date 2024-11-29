@@ -67,13 +67,13 @@ public class LexicalAnalyzer {
                 continue;
             }
 
-            // Check for multi-line comment
+            
             if (currentChar == '/' && position + 1 < input.length() && input.charAt(position + 1) == '*') {
                 analyzeMultiLineComment();
                 continue;
             }
 
-            // Check for invalid single-line comment attempt (excluding multi-line comments)
+            
             if (currentChar == '/' && position + 1 < input.length()
                     && input.charAt(position + 1) != '/'
                     && input.charAt(position + 1) != '*') {
@@ -128,17 +128,17 @@ public class LexicalAnalyzer {
     }
 
     private void analyzeSingleLineComment() {
-        // Skip the '//'
+        
         position += 2;
         column += 2;
 
-        // Continue until end of line or end of input
+        
         while (position < input.length() && input.charAt(position) != '\n') {
             position++;
             column++;
         }
 
-        // If ended by newline, update line and column
+        
         if (position < input.length() && input.charAt(position) == '\n') {
             line++;
             column = 1;
@@ -147,16 +147,16 @@ public class LexicalAnalyzer {
     }
 
     private void analyzeMultiLineComment() {
-        // Skip the '/*'
+       
         position += 2;
         column += 2;
 
-        // Track nested comment depth
+        
         int depth = 1;
 
         while (position < input.length()) {
             if (position + 1 < input.length()) {
-                // Check for nested comments
+                
                 if (input.charAt(position) == '/' && input.charAt(position + 1) == '*') {
                     depth++;
                     position += 2;
@@ -164,13 +164,13 @@ public class LexicalAnalyzer {
                     continue;
                 }
 
-                // Check for comment end
+                
                 if (input.charAt(position) == '*' && input.charAt(position + 1) == '/') {
                     depth--;
                     position += 2;
                     column += 2;
 
-                    // If all nested comments are closed, exit
+                    
                     if (depth == 0) {
                         break;
                     }
@@ -178,7 +178,7 @@ public class LexicalAnalyzer {
                 }
             }
 
-            // Handle newlines within comment
+            
             if (input.charAt(position) == '\n') {
                 line++;
                 column = 1;
@@ -188,7 +188,7 @@ public class LexicalAnalyzer {
             position++;
         }
 
-        // Check if comment was not closed
+        
         if (depth > 0) {
             reportError(1005, "Comentario de múltiples líneas no cerrado");
         }
@@ -428,44 +428,6 @@ public class LexicalAnalyzer {
     }
 }
 
-// Clases auxiliares
-/*class Token {
-
-    private final int type;
-    private final String lexeme;
-    private final int line;
-    private final int column;
-
-    public Token(int type, String lexeme, int line, int column) {
-        this.type = type;
-        this.lexeme = lexeme;
-        this.line = line;
-        this.column = column;
-    }
-
-    // Getters
-    public int getType() {
-        return type;
-    }
-
-    public String getLexeme() {
-        return lexeme;
-    }
-
-    public int getLine() {
-        return line;
-    }
-
-    public int getColumn() {
-        return column;
-    }
-
-    @Override
-    public String toString() {
-        return String.format("Token{type=%d, lexeme='%s', line=%d, column=%d}",
-                type, lexeme, line, column);
-    }
-}*/
 
 class LexicalError {
 

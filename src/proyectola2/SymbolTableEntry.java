@@ -20,7 +20,7 @@ class SymbolTableEntry {
         this.type = type;
         this.initialized = false;
 
-        // Set default value based on type
+
         switch (type) {
             case 100: // int
                 this.currentValue = 0;
@@ -49,7 +49,7 @@ class SymbolTableEntry {
     }
 
     public String getDisplayValue() {
-        // If not initialized, return the default value
+        
         return initialized
                 ? (currentValue != null ? currentValue.toString() : "null")
                 : getCurrentValue().toString() + " (default)";

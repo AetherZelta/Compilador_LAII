@@ -26,10 +26,7 @@ public class SyntaxAnalyzer {
         this.errors = new ArrayList<>();
         this.symbolTable = new HashMap<>();
         this.analysisComplete = false;
-        /*if (symbolTable == null) {
-            symbolTable = new HashMap<>();
-        }
-        this.analysisComplete = false;*/
+       
     }
 
     public static Map<String, SymbolTableEntry> getSymbolTable() {
@@ -170,7 +167,7 @@ public class SyntaxAnalyzer {
         if (currentToken.getType() == 400) { // identifier
             SymbolTableEntry entry = symbolTable.get(currentToken.getLexeme());
             if (entry != null) {
-                // Check if the variable is initialized before using its value
+                
                 if (!entry.isInitialized()) {
                     reportError("2003", "Variable no inicializada: " + currentToken.getLexeme());
                     return null;
@@ -250,9 +247,7 @@ public class SyntaxAnalyzer {
             reportError("2002", "Variable no declarada: " + idName);
             return;
         }
-        /*if (!symbolTable.containsKey(idName)) {
-            reportError("2002", "Variable no declarada: " + idName);
-        }*/
+        
 
         advance();
 
@@ -505,32 +500,4 @@ class SyntaxError {
     }
 }
 
-/*class SymbolTableEntry {
 
-    private final String name;
-    private final int type;
-    private Object value;
-
-    public SymbolTableEntry(String name, int type) {
-        this.name = name;
-        this.type = type;
-        this.value = null;
-    }
-
-    // Getters y setters
-    public String getName() {
-        return name;
-    }
-
-    public int getType() {
-        return type;
-    }
-
-    public Object getValue() {
-        return value;
-    }
-
-    public void setValue(Object value) {
-        this.value = value;
-    }
-}*/
